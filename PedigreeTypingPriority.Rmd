@@ -1,0 +1,69 @@
+---
+title: "PedigreeTypingPriority"
+subtitle: "sbiagini0"
+date: 26/09/2025
+---
+#import_helpers and typingPriority
+```{r import_helpers and typingPriority, include=FALSE}
+source("R/helpers.R")
+source("R/typingPriority.R")
+
+``` 
+
+#setup_packages
+```{r setup_packages, include=FALSE}
+packages<-c("pedtools", "pedprobr", "pedmut", "forrel", "tibble", "magrittr", "tidyverse", "doParallel", "fs", "magick", "writexl", "svDialogs")
+load_packages(packages)
+
+```
+
+#read_famfile
+```{r read_famfile, include=TRUE}
+mpi <- read_famfile(path = "data")
+
+```
+
+#pedFormat
+```{r pedFormat, include=TRUE}
+mpi = pedFormat(mpi)
+
+```
+
+#select_pedigree
+```{r select_pedigree, include=TRUE}
+pedigree <- select_pedigree(mpi)
+
+```
+
+#edit_pedigree
+```{r edit_pedigree, include=TRUE}
+pedigree <- edit_pedigree(pedigree)
+
+```
+
+#select_members_for_simulation
+```{r select_members_for_simulation, include=TRUE}
+members_selected = select_members_for_simulation(pedigree)
+
+```
+#simulation_parameters
+```{r simulation_parameters, include=TRUE}
+params <- simulation_parameters()
+
+```
+
+#typingPriority
+```{r typingPriority, include=TRUE}
+typingPriority(pedigree, 
+               members_selected, 
+               params$baseline, 
+               params$nsim, 
+               params$nprofiles, 
+               params$threshold, 
+               params$mutations, 
+               params$ncores, 
+               params$seed,
+               k_max = 3)
+
+``` 
+
