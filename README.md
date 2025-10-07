@@ -82,7 +82,7 @@ Use it as a quick, practical guide to **decide who to type next**—so you get t
       - `nsim` — number of LR simulations per selection set.  
       - `nprofiles` — simulated profiles per LR simulation.  
       - `baseline` — include baseline pedigree in comparisons.  
-      - `mutations` — **Deactivate mutations** in simulations when `TRUE`.  
+      - `mutations` — `NA` = **Deactivate only where genotypes consistent**; `TRUE` = **Deactivate mutations**; `FALSE` = **Keep mutations**)
       - `threshold` — inclusion threshold for IP in `MPPsims`.  
       - `ncores` — CPU cores for parallel runs.  
       - `seed` — seed for reproducibility.
