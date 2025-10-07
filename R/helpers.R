@@ -38,7 +38,7 @@ read_famfile <- function(file = NULL, path = "data") {
     pedFamilias::readFam(
       fam_file,
       useDVI      = TRUE,
-      prefixAdded = "EXTRA",
+      #prefixAdded = "EXTRA",
       simplify1   = TRUE,
       deduplicate = TRUE,
       verbose     = FALSE
@@ -60,14 +60,14 @@ pedFormat <- function(mpi) {
   if (is.null(mpi) || length(mpi) == 0)
     return(mpi)
   
-  mpi <- pedtools::harmoniseMarkers(mpi)
-  
   mpi <- lapply(mpi, function(p) {
     if (is.list(p) && !is.null(p[["_comp1"]])) {
       p <- p[["_comp1"]]
     }
     p
   })
+  
+  mpi <- pedtools::harmoniseMarkers(mpi)
   
   mpi <- lapply(mpi, function(p) {
     if (!pedtools::is.ped(p))
@@ -93,7 +93,7 @@ pedFormat <- function(mpi) {
 #'   \item{nsim}{integer, number of simulations (>= 1)}
 #'   \item{nprofiles}{integer, profiles per simulation (>= 1)}
 #'   \item{baseline}{logical, whether to simulate baseline pedigree}
-#'   \item{mutations}{logical, whether to deactivate mutations}
+#'   \item{mutations}{NA, TRUE, FALSE, whether to deactivate mutations}
 #'   \item{threshold}{numeric, LR threshold (>= 0)}
 #'   \item{ncores}{integer, CPU cores used (1..detectCores)}
 #'   \item{seed}{integer, random seed}
@@ -105,8 +105,8 @@ simulation_parameters <- function() {
   defaults <- list(
     nsim      = 1000L,
     nprofiles = 10L,
-    baseline  = "TRUE",
-    mutations = "FALSE",
+    baseline  = TRUE,
+    mutations = NA,
     threshold = 10000,
     ncores    = min(10L, max_cores),
     seed      = as.integer(round(as.numeric(Sys.time()))) %% .Machine$integer.max
@@ -122,18 +122,27 @@ simulation_parameters <- function() {
       svDialogs::dlgMessage("Invalid value. Please try again.", type = "ok")
     }
   }
-  ask_logical <- function(msg, def = "TRUE") {
+  
+  ask_logical <- function(msg, def = TRUE) {
     pick <- svDialogs::dlgList(choices = c("TRUE","FALSE"),
-                               preselect = def, multiple = FALSE,
-                               title = msg)$res
-    if (is.null(pick) || pick == "") pick <- def
+                               preselect = if (isTRUE(def)) "TRUE" else "FALSE",
+                               multiple = FALSE, title = msg)$res
+    if (is.null(pick) || pick == "") pick <- if (isTRUE(def)) "TRUE" else "FALSE"
     identical(pick, "TRUE")
+  }
+  
+  ask_mutations <- function(msg, def = NA) {
+    pre <- if (isTRUE(def)) "TRUE" else if (identical(def, FALSE)) "FALSE" else "NA"
+    pick <- svDialogs::dlgList(choices = c("NA","TRUE","FALSE"),
+                               preselect = pre, multiple = FALSE, title = msg)$res
+    if (is.null(pick) || pick == "") pick <- pre
+    if (pick == "NA") NA else identical(pick, "TRUE")
   }
   
   nsim      <- ask_num("Enter the number of simulations", defaults$nsim, integer = TRUE, min = 1)
   nprofiles <- ask_num("Enter the number of profiles to simulate", defaults$nprofiles, integer = TRUE, min = 1)
   baseline  <- ask_logical("Baseline pedigree simulation?", def = defaults$baseline)
-  mutations <- ask_logical("Deactivate mutations?", def = defaults$mutations)
+  mutations <- ask_mutations("Disable Mutations?", def = defaults$mutations)
   threshold <- ask_num("Enter the LR threshold", defaults$threshold, integer = FALSE, min = 0)
   ncores    <- ask_num(paste0("Enter the number of cores (max: ", max_cores, ")"),
                        defaults$ncores, integer = TRUE, min = 1, max = max_cores)
@@ -143,17 +152,22 @@ simulation_parameters <- function() {
     nsim = as.integer(nsim),
     nprofiles = as.integer(nprofiles),
     baseline = baseline,
-    mutations = mutations,
+    mutations = mutations,   # <- NA / TRUE / FALSE
     threshold = as.numeric(threshold),
     ncores = as.integer(ncores),
     seed = as.integer(seed)
   )
   
+  # Pretty print
+  mtxt <- if (isTRUE(params$mutations)) "TRUE (disable everywhere)"
+  else if (identical(params$mutations, FALSE)) "FALSE (keep models)"
+  else "NA (disable only where consistent)"
+  
   lines <- c(
     sprintf("Number of simulations       : %d", params$nsim),
     sprintf("Profiles per simulation     : %d", params$nprofiles),
     sprintf("Baseline                    : %s", params$baseline),
-    sprintf("Mutations deactivated       : %s", params$mutations),
+    sprintf("Mutations                   : %s", mtxt),
     sprintf("LR threshold                : %g", params$threshold),
     sprintf("Cores                       : %d", params$ncores),
     sprintf("Seed                        : %d", params$seed)
@@ -166,6 +180,7 @@ simulation_parameters <- function() {
   
   params
 }
+
 
 ################################################################################
 #' Select a single pedigree from an ped list.
@@ -318,22 +333,22 @@ select_members_for_simulation <- function(pedigree) {
 #' @return Named list of selections; each element is a character vector:
 #'         c(<candidate combo>, <typed not in combo>).
 generate_combinations <- function(members_selected, typedMembers, k_max = NULL) {
-  n <- length(members_selected)
-  if (n == 0) return(list())
+  members_selected <- unique(as.character(members_selected))
+  typedMembers     <- unique(as.character(typedMembers))
   
-  ks <- 1:n
-  if (!is.null(k_max)) ks <- ks[ks <= k_max]
+  if (length(members_selected) == 0L)
+    stop("There are no untyped candidates to combine.")
   
-  combos <- unlist(lapply(ks, function(k) combn(members_selected, k, simplify = FALSE)), recursive = FALSE)
+  K <- seq_len(if (is.null(k_max)) length(members_selected) else min(k_max, length(members_selected)))
   
-  selections <- vector("list", length(combos))
-  names(selections) <- vapply(combos, function(z) paste(sort(z), collapse = "_"), character(1))
+  combs <- unlist(lapply(K, function(k)
+    combn(members_selected, k, simplify = FALSE)), recursive = FALSE)
   
-  for (i in seq_along(combos)) {
-    combo <- combos[[i]]
-    typed_not_in_combo <- setdiff(typedMembers, combo)
-    selections[[i]] <- c(combo, typed_not_in_combo)
-  }
+  selections <- lapply(combs, function(sel) unique(c(sel, typedMembers)))
   
+  names(selections) <- vapply(combs, function(sel) paste(sel, collapse = "_"), character(1))
+  
+  stopifnot(all(lengths(selections) >= length(typedMembers)))
+  stopifnot(all(vapply(combs, length, 1L) >= 1L))
   selections
 }

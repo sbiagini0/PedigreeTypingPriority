@@ -66,4 +66,3 @@ typingPriority(pedigree,
                k_max = 3)
 
 ``` 
-

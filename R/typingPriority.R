@@ -58,6 +58,8 @@ typingPriority <- function(pedigree, members_selected, baseline, nsim, nprofiles
     reference        = pedigree,
     missing          = "MP",
     selections       = selections,
+    ep               = TRUE,
+    ip               = TRUE,
     addBaseline      = baseline,
     lrSims           = nsim,
     nProfiles        = nprofiles,
@@ -140,4 +142,6 @@ typingPriority <- function(pedigree, members_selected, baseline, nsim, nprofiles
   return(knitr::include_graphics(final_path))
   
   invisible(list(image = img, path = final_path, simData = simData))
+  
+  gc()
 }
